@@ -28,14 +28,17 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   })
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-
-  <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
-    
-    <OnlineUsersProvider>   {/* 👈 SHU YERGA QO‘Y */}
-      <App />
-    </OnlineUsersProvider>
-
-  </GoogleOAuthProvider>
-
+const app = (
+  <OnlineUsersProvider>
+    <App />
+  </OnlineUsersProvider>
 )
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <GoogleOAuthProvider
+    clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || "demo-placeholder"}
+  >
+    {app}
+  </GoogleOAuthProvider>
+)
+

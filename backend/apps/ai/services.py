@@ -1,14 +1,25 @@
 from openai import OpenAI
 from django.conf import settings
 
-client = OpenAI(
-    api_key=settings.DEEPSEEK_API_KEY,
-    base_url="https://api.deepseek.com"
+client = (
+    OpenAI(
+        api_key=settings.DEEPSEEK_API_KEY,
+        base_url="https://api.deepseek.com"
+    )
+    if settings.DEEPSEEK_API_KEY
+    else None
 )
+
+def _require_ai_client():
+    if client is None:
+        raise RuntimeError(
+            "AI features are disabled because DEEPSEEK_API_KEY is not configured."
+        )
 
 
 def generate_reply(messages: list[str]):
     try:
+        _require_ai_client()
         conversation = "\n".join(messages)
 
         response = client.chat.completions.create(
@@ -41,6 +52,7 @@ def generate_reply(messages: list[str]):
 
 def summarize_chat(messages: list[str]):
     try:
+        _require_ai_client()
         conversation = "\n".join(messages)
 
         response = client.chat.completions.create(
@@ -69,6 +81,7 @@ def summarize_chat(messages: list[str]):
 
 def translate_message(message: str, target_language: str):
     try:
+        _require_ai_client()
         if len(message) > 1000:
             return "AI Error: Message is too long."
 
@@ -100,6 +113,7 @@ def translate_message(message: str, target_language: str):
 
 def grammar_fix(message: str):
     try:
+        _require_ai_client()
         if len(message) > 1000:
             return "AI Error: Message is too long."
 
@@ -131,6 +145,7 @@ def grammar_fix(message: str):
 
 def rewrite_message(message: str, tone: str):
     try:
+        _require_ai_client()
         if len(message) > 1000:
             return "AI Error: Message is too long."
 
@@ -163,6 +178,7 @@ def rewrite_message(message: str, tone: str):
 
 def search_chat(messages: list[str], question: str):
     try:
+        _require_ai_client()
         conversation = "\n".join(messages)
 
         response = client.chat.completions.create(
