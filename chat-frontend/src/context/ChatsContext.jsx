@@ -145,8 +145,10 @@ export const ChatsProvider = ({ children, currentUser, onNotificationClick }) =>
 
     const connect = () => {
       if (!active) return
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+      const wsBase = import.meta.env.VITE_WS_URL || `${wsProtocol}//${window.location.host}`
+      const ws = new WebSocket(`${wsBase}/ws/notifications/?token=${token}`)
 
-      const ws = new WebSocket(`${import.meta.env.VITE_WS_URL}/ws/notifications/?token=${token}`)
       notificationSocketRef.current = ws
 
       ws.onopen = () => console.log("🔔 Notification connected")

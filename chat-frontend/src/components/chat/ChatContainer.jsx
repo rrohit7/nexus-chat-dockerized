@@ -356,9 +356,9 @@ const handleSearchResultClick = (messageId) => {
   setTimeout(() => {
     const messageElement = document.getElementById(`message-${messageId}`)
     if (messageElement) {
-      messageElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
+      messageElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
       })
       messageElement.classList.add('highlight-message')
       setTimeout(() => {
@@ -597,18 +597,18 @@ const buildMemberChatTarget = (member) => {
       setError("Authentication token not found")
       return
     }
-
-    const wsUrl = `${import.meta.env.VITE_WS_URL}/ws/chat/${convId}/?token=${token}`
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+    const wsBase = import.meta.env.VITE_WS_URL || `${wsProtocol}//${window.location.host}`
+    const wsUrl = `${wsBase}/ws/chat/${convId}/?token=${token}`
 
     const ws = new WebSocket(wsUrl)
-
     ws.onopen = () => {
       setIsConnected(true)
       setError("")
       processedReads.current.clear()
       processedMessages.current.clear()
 
-      // 🔥 ACTIVE CHAT 
+      // 🔥 ACTIVE CHAT
       ws.send(JSON.stringify({
         type: "active_chat",
         conversation_id: convId
@@ -625,8 +625,8 @@ const buildMemberChatTarget = (member) => {
       }
       else if (data.type === "message") {
   const msg = data.data
-   console.log("📨 Kelgan xabar:", msg)        
-  console.log("📨 temp_id:", msg?.temp_id)    
+   console.log("📨 Kelgan xabar:", msg)
+  console.log("📨 temp_id:", msg?.temp_id)
   if (!msg) return
 
   const messageKey = `message_${msg.id}`
@@ -678,7 +678,7 @@ const buildMemberChatTarget = (member) => {
   ]
 })
 }
-        
+
         else if (data.type === "read") {
           setMessages(prev =>
             prev.map(msg =>
@@ -715,7 +715,7 @@ const buildMemberChatTarget = (member) => {
         // longer sent over this per-conversation socket — it now arrives
         // exclusively over the always-on notifications socket, handled in
         // ChatsContext and consumed below via subscribePresence().
-        
+
         // TYPING INDICATOR
         else if (data.type === "typing_start") {
           setTypingUser(data.username)
@@ -723,7 +723,7 @@ const buildMemberChatTarget = (member) => {
         else if (data.type === "typing_stop") {
           setTypingUser(null)
         }
-        // ChatContainer.jsx - reaction handler 
+        // ChatContainer.jsx - reaction handler
       else if (data.type === "reaction") {
 
         setMessages(prev =>
@@ -736,7 +736,7 @@ const buildMemberChatTarget = (member) => {
             // ❌ REMOVE
             // =========================
             if (data.action === "removed") {
-              reactions = reactions.filter(r => 
+              reactions = reactions.filter(r =>
                 r && r.user_id !== data.user_id
               )
             }
@@ -752,12 +752,12 @@ const buildMemberChatTarget = (member) => {
                 return msg
               }
 
-              
-              reactions = reactions.filter(r => 
+
+              reactions = reactions.filter(r =>
                 r && r.user_id !== newReaction.user_id
               )
 
-             
+
               reactions.push(newReaction)
             }
 
@@ -789,10 +789,10 @@ const buildMemberChatTarget = (member) => {
   setMessages(prev =>
     prev.map(msg =>
       msg.id === data.message_id
-        ? { 
-            ...msg, 
-            is_deleted: true, 
-            content: "", 
+        ? {
+            ...msg,
+            is_deleted: true,
+            content: "",
             attachments: [],
             reactions: []
           }
@@ -930,7 +930,7 @@ setLoading(true)
       setError("Failed to load messages")
     }
     finally {
-    setLoading(false)   
+    setLoading(false)
   }
   }
 
@@ -1117,17 +1117,17 @@ setLoading(true)
 
   const markAsRead = (messageId) => {
     if (!socketRef.current || !isConnected) return
-    
+
     if (processedReads.current.has(messageId)) {
       return
     }
-    
+
     const message = messages.find(m => m.id === messageId)
-    
+
     if (message && !message.is_deleted && message.sender_id !== currentUser?.id) {
       console.log("👁 Marking as read:", messageId)
       processedReads.current.add(messageId)
-      
+
       socketRef.current.send(JSON.stringify({
         type: "read",
         message_id: messageId
@@ -1318,7 +1318,7 @@ setLoading(true)
         className="search-input-modern"
       />
       {search && (
-        <button 
+        <button
           className="clear-search-btn"
           onClick={() => setSearch('')}
         >
@@ -1326,7 +1326,7 @@ setLoading(true)
         </button>
       )}
     </div>
-    
+
     {/* Search Results Dropdown */}
     {search && (
       <div className="search-results-dropdown">
@@ -1345,7 +1345,7 @@ setLoading(true)
             searchResults.map((msg, idx) => (
               <div key={msg.id || idx} className="search-result-item" onClick={() => handleSearchResultClick(msg.id)}
               style={{ cursor: 'pointer' }}>
-                
+
                 <div className="result-avatar">
                   <div className="result-avatar-placeholder" style={{ background: getAvatarColor(msg.sender_username || msg.sender) }}>
                     {(msg.sender_display_name || "Unknown")[0].toUpperCase()}
@@ -1358,7 +1358,7 @@ setLoading(true)
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <div 
+                  <div
                     className="result-message"
                     dangerouslySetInnerHTML={{
                       __html: highlightText(msg.content || msg.text || '', search)
@@ -1628,8 +1628,8 @@ setLoading(true)
     conversation={conversation}
     messages={messages}
     currentUser={currentUser}
-    replyMessage={replyMessage}     
-    onCancelReply={() => setReplyMessage(null)} 
+    replyMessage={replyMessage}
+    onCancelReply={() => setReplyMessage(null)}
     onFileUploaded={(message) => {
   setMessages((prev) => {
     // 🔴 REMOVE TEMP

@@ -62,17 +62,6 @@ services:
       - clamav
     restart: unless-stopped
 
-  frontend:
-    build:
-      context: ../chat-frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api
-        VITE_WS_URL: ""
-    image: chat_frontend:latest
-    restart: unless-stopped
-
-
   redis:
     image: redis:7
     ports:
