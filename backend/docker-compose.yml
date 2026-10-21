@@ -13,8 +13,6 @@ services:
       "
     volumes:
       - .:/app
-    ports:
-      - "8004:8000"
     env_file:
       - .env
     environment:
@@ -29,6 +27,9 @@ services:
       clamav:
         condition: service_started
     restart: unless-stopped
+    networks:
+      - edge
+      - internal
 
   celery:
     image: chat_app:latest
@@ -45,6 +46,8 @@ services:
       - minio
       - clamav
     restart: unless-stopped
+    networks:
+      - internal
 
   celery-beat:
     image: chat_app:latest
@@ -61,6 +64,8 @@ services:
       - minio
       - clamav
     restart: unless-stopped
+    networks:
+      - internal
 
   redis:
     image: redis:7
@@ -69,6 +74,8 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    networks:
+      - internal
 
   db:
     image: postgres:15
@@ -87,6 +94,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - internal
 
   minio:
     image: cgr.dev/chainguard/minio:latest
@@ -95,12 +104,12 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "9004:9000"
       - "127.0.0.1:9005:9001"
     volumes:
       - minio_data:/data
     restart: unless-stopped
-
+    networks:
+      - internal
   clamav:
     image: clamav/clamav:latest
     container_name: chat_clamav
@@ -111,7 +120,8 @@ services:
     environment:
       - CLAMAV_NO_FRESHCLAMD=false
     restart: unless-stopped
-
+    networks:
+      - internal
   # Optional TURN/STUN relay for WebRTC calls.
   coturn:
     profiles:
@@ -144,6 +154,8 @@ services:
       - "127.0.0.1:8080:80"
     depends_on:
       - backend
+    networks:
+      - edge
     restart: unless-stopped
 
 
@@ -152,3 +164,7 @@ volumes:
   minio_data:
   redis_data:
   clamav_data:
+networks:
+  edge:
+  internal:
+    internal:  true
