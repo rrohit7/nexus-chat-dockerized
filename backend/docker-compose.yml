@@ -19,13 +19,19 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       db:
         condition: service_healthy
       minio:
         condition: service_started
       clamav:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, urllib.error; exec(\"try:\\n urllib.request.urlopen('http://127.0.0.1:8000/api/', timeout=3)\\nexcept urllib.error.HTTPError:\\n pass\")"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
     networks:
       - edge
@@ -69,6 +75,12 @@ services:
 
   redis:
     image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     ports:
       - "127.0.0.1:6383:6379"
     volumes:
