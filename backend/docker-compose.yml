@@ -156,6 +156,7 @@ services:
       - backend
     networks:
       - edge
+      - internal
     restart: unless-stopped
 
 

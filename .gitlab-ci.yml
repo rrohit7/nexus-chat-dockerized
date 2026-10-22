@@ -18,8 +18,17 @@ validate-compose:
   before_script:
     - docker info
   script:
-    - export DB_NAME=ci_db DB_USER=ci_user DB_PASSWORD=ci_password MINIO_ROOT_USER=ci_minio MINIO_ROOT_PASSWORD=ci_minio_password
-    - docker compose --env-file /dev/null -f backend/docker-compose.yml config -q
+    - cd backend
+    - |
+      cat > .env <<'EOF'
+      DB_NAME=ci_db
+      DB_USER=ci_user
+      DB_PASSWORD=ci_password
+      MINIO_ROOT_USER=ci_minio
+      MINIO_ROOT_PASSWORD=ci_minio_password
+      EOF
+    - docker compose config -q
+    - rm -f .env
   rules:
     - if: '$CI_COMMIT_BRANCH'
 
