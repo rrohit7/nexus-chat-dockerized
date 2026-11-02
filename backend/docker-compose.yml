@@ -47,13 +47,18 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
-      - redis
-      - db
-      - minio
-      - clamav
+      redis:
+        condition: service_started
+      db:
+        condition: service_started
+      minio:
+        condition: service_started
+      clamav:
+        condition: service_healthy
     restart: unless-stopped
     networks:
-      - internal
+      - edge      # required for outbound Web Push (pywebpush → FCM/Mozilla/APNs)
+      - internal  # retains access to redis, db, minio, clamav
 
   celery-beat:
     image: chat_app:latest
@@ -131,9 +136,23 @@ services:
       - clamav_data:/var/lib/clamav
     environment:
       - CLAMAV_NO_FRESHCLAMD=false
+    healthcheck:
+      # clamdscan --ping sends a PING to clamd over the TCP socket configured
+      # in /etc/clamav/clamd.conf (port 3310) and returns exit 0 only when the
+      # daemon responds PONG — a genuine daemon-readiness check, not port-open.
+      # --ping=3 allows up to 3 attempts per health-check invocation.
+      # start_period is long because a cold start requires freshclamd to
+      # download the initial signature database (~250 MB), which may take
+      # several minutes on a slow connection.
+      test: ["CMD-SHELL", "clamdscan --ping=3 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     restart: unless-stopped
     networks:
-      - internal
+      - edge      # required for freshclamd signature updates from ClamAV mirrors
+      - internal  # retains reachability from backend and celery at clamav:3310
   # Optional TURN/STUN relay for WebRTC calls.
   coturn:
     profiles:

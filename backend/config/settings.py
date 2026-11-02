@@ -339,7 +339,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 30.0,  # every 30 seconds — scheduled sends should feel timely
     },
 }
-PUBLIC_MINIO_URL = "http://localhost:9004"
+# Public URL the browser uses to reach MinIO presigned links.
+# In the Docker Compose setup this goes through Nginx at /minio/.
+# Default matches the local Compose configuration: http://localhost:8080/minio
+# Do not confuse with AWS_S3_ENDPOINT_URL (the internal minio:9000 endpoint
+# used only for server-to-server S3 operations — never change that here).
+PUBLIC_MINIO_URL = env("PUBLIC_MINIO_URL", default="http://localhost:8080/minio")
 
 DEEPSEEK_API_KEY = env("DEEPSEEK_API_KEY")
 
