@@ -369,7 +369,6 @@ VITE_TURN_PASSWORD=your_turn_password
 
 ## ⭐ Support
 
-If you like this project, give it a ⭐ on GitHub!
+If 
 
 
-CI/CD Demo: GitLab automatically validates Docker Compose and builds Docker images on branch pushes.
