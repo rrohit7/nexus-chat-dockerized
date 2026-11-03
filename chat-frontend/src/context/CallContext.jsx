@@ -7,20 +7,26 @@ const CallContext = createContext()
 
 // STUN alone only helps two peers find each other for a *direct* connection —
 // it does nothing when a direct connection isn't possible (strict/symmetric
-// NAT, restrictive firewalls). The TURN entry is a real relay fallback
-// (coturn, see backend/docker-compose.yml) for exactly that case; WebRTC
-// only actually uses it when a direct/STUN path fails.
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    ...(import.meta.env.VITE_TURN_URL
-      ? [{
-          urls: import.meta.env.VITE_TURN_URL,
-          username: import.meta.env.VITE_TURN_USERNAME,
-          credential: import.meta.env.VITE_TURN_PASSWORD,
-        }]
-      : []),
-  ],
+// NAT, restrictive firewalls). TURN credentials are fetched fresh from the
+// Django backend before each call so they are time-limited and never baked
+// into the frontend bundle (see backend/apps/users/turn_credentials.py).
+const STUN_ONLY = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
+
+async function fetchIceConfig() {
+  try {
+    const { data } = await api.get("/turn-credentials/")
+    return {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: data.urls, username: data.username, credential: data.credential },
+      ],
+    }
+  } catch (err) {
+    // Fall back to STUN-only — TURN relay is unavailable but direct calls may still work.
+    // Log status/message only; never log the credential or username.
+    console.error("TURN credential fetch failed — using STUN only:", err?.response?.status ?? err?.message)
+    return STUN_ONLY
+  }
 }
 
 export function CallProvider({ children, currentUser, sendCallSignal, subscribeCallSignals }) {
@@ -76,8 +82,8 @@ export function CallProvider({ children, currentUser, sendCallSignal, subscribeC
     setCallState("idle")
   }, [localStream])
 
-  const createPeerConnection = useCallback((targetUserId) => {
-    const pc = new RTCPeerConnection(ICE_SERVERS)
+  const createPeerConnection = useCallback((targetUserId, iceConfig) => {
+    const pc = new RTCPeerConnection(iceConfig)
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -132,7 +138,8 @@ export function CallProvider({ children, currentUser, sendCallSignal, subscribeC
       setRemoteUser(targetUser)
       setCallState("outgoing")
 
-      const pc = createPeerConnection(targetUser.id)
+      const iceConfig = await fetchIceConfig()
+      const pc = createPeerConnection(targetUser.id, iceConfig)
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
       const offer = await pc.createOffer()
@@ -164,7 +171,8 @@ export function CallProvider({ children, currentUser, sendCallSignal, subscribeC
       setLocalStream(stream)
       setIsVideoOn(offerData.call_type === "video")
 
-      const pc = createPeerConnection(offerData.from_user_id)
+      const iceConfig = await fetchIceConfig()
+      const pc = createPeerConnection(offerData.from_user_id, iceConfig)
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
       await pc.setRemoteDescription(new RTCSessionDescription(offerData.sdp))

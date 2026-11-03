@@ -166,6 +166,7 @@ REST_FRAMEWORK = {
         "message": "2/second",
         "login": "5/minute",
         "upload": "100/minute",
+        "turn_credential": "10/minute",
     },
 }
 
@@ -375,3 +376,14 @@ if SENTRY_DSN:
 VAPID_PUBLIC_KEY = env("VAPID_PUBLIC_KEY", default="")
 VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", default="")
 VAPID_ADMIN_EMAIL = env("VAPID_ADMIN_EMAIL", default="admin@example.com")
+
+# Coturn TURN REST API — Stage B
+# TURN_AUTH_SECRET: shared HMAC secret; must match Coturn's static-auth-secret.
+#   Empty string disables the /api/turn-credentials/ endpoint (returns 503).
+#   Never expose this value in frontend code or API responses.
+# TURN_SERVER_URL: public TURN URL sent to WebRTC clients (e.g. "turn:host:3478").
+#   Empty string also disables the endpoint.
+# TURN_CREDENTIAL_TTL: lifetime of issued credentials in seconds (default 600).
+TURN_AUTH_SECRET = env("TURN_AUTH_SECRET", default="")
+TURN_SERVER_URL = env("TURN_SERVER_URL", default="")
+TURN_CREDENTIAL_TTL = env.int("TURN_CREDENTIAL_TTL", default=600)

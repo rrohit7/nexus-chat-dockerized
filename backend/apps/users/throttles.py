@@ -11,3 +11,7 @@ class LoginThrottle(UserRateThrottle):
 
 class UploadThrottle(UserRateThrottle):
     scope = "upload"
+
+
+class TurnCredentialThrottle(UserRateThrottle):
+    scope = "turn_credential"

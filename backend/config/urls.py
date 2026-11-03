@@ -18,9 +18,11 @@ from django.contrib import admin
 from django.urls import path,include
 from django.conf import settings
 from django.conf.urls.static import static
+from apps.users.turn_credentials import TurnCredentialView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path("api/turn-credentials/", TurnCredentialView.as_view()),
     path("api/users/", include("apps.users.urls")),
     path("api/ai/", include("apps.ai.urls")),
     path("api/auth/", include("dj_rest_auth.urls")),

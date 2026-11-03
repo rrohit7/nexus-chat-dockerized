@@ -154,25 +154,33 @@ services:
       - edge      # required for freshclamd signature updates from ClamAV mirrors
       - internal  # retains reachability from backend and celery at clamav:3310
   # Optional TURN/STUN relay for WebRTC calls.
+  # Start with: docker compose --profile optional up -d coturn
+  # Requires TURN_AUTH_SECRET, TURN_REALM, TURN_EXTERNAL_IP in .env.
   coturn:
     profiles:
       - optional
-    image: coturn/coturn:latest
+    # Pinned to a verified stable release — do not change to :latest.
+    image: coturn/coturn:4.6.2
     container_name: chat_coturn
-    command: >
-      -n
-      --log-file=stdout
-      --lt-cred-mech
-      --realm=${TURN_REALM:-chatapp.local}
-      --user=${TURN_USERNAME:-chatuser}:${TURN_PASSWORD:-changeme}
-      --no-cli
-      --min-port=49160
-      --max-port=49200
-      --external-ip=${TURN_EXTERNAL_IP:-127.0.0.1}
+    # The entrypoint script writes /tmp/turnserver.conf from environment
+    # variables, then exec's turnserver.  Credentials stay out of command-line
+    # arguments (visible in `docker inspect .Args`); they reside only in
+    # .Config.Env — the same exposure level as every other service here.
+    entrypoint: ["/bin/sh", "/coturn-entrypoint.sh"]
+    volumes:
+      - ./coturn/entrypoint.sh:/coturn-entrypoint.sh:ro
+    env_file:
+      - .env
     ports:
-      - "3478:3478/udp"
-      - "3478:3478/tcp"
-      - "49160-49200:49160-49200/udp"
+      # TURN_LISTEN_IP sets the host interface for all TURN ports.
+      # Local dev  → set TURN_LISTEN_IP=127.0.0.1 in .env (loopback only)
+      # Production → set TURN_LISTEN_IP=0.0.0.0 (all interfaces) or leave unset
+      - "${TURN_LISTEN_IP:-0.0.0.0}:3478:3478/udp"
+      - "${TURN_LISTEN_IP:-0.0.0.0}:3478:3478/tcp"
+      # Relay range: must match TURN_MIN_PORT/TURN_MAX_PORT in .env
+      - "${TURN_LISTEN_IP:-0.0.0.0}:${TURN_MIN_PORT:-49160}-${TURN_MAX_PORT:-49200}:${TURN_MIN_PORT:-49160}-${TURN_MAX_PORT:-49200}/udp"
+    networks:
+      - edge
     restart: unless-stopped
 
 
