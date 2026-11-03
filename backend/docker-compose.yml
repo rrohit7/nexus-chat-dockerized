@@ -48,13 +48,23 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       db:
-        condition: service_started
+        condition: service_healthy
       minio:
         condition: service_started
       clamav:
         condition: service_healthy
+    healthcheck:
+      # celery inspect ping sends a message through the Redis broker and waits
+      # for a pong from the worker — a genuine liveness check, not just a
+      # process-exists check.  Observed round-trip ~3.5 s; -t 5 leaves headroom.
+      # interval is generous to avoid constant broker traffic.
+      test: ["CMD", "celery", "-A", "config", "inspect", "ping", "-t", "5"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     networks:
       - edge      # required for outbound Web Push (pywebpush → FCM/Mozilla/APNs)
@@ -74,6 +84,18 @@ services:
       - db
       - minio
       - clamav
+    healthcheck:
+      # PersistentScheduler writes /app/celerybeat-schedule after every task
+      # dispatch.  Checking the file's mtime confirms the scheduler loop is
+      # active.  600 s threshold is generous — the shortest task fires every
+      # 30 s (auto-delete-expired-messages), so the file is updated at least
+      # that often.  NOTE: this indicates scheduler-file activity only; it
+      # does not guarantee successful task delivery to Redis.
+      test: ["CMD", "python", "-c", "import os,sys,time; age=time.time()-os.path.getmtime('/app/celerybeat-schedule'); sys.exit(0 if age<600 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     networks:
       - internal
@@ -124,6 +146,20 @@ services:
       - "127.0.0.1:9005:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      # /minio/health/ready is MinIO's unauthenticated readiness endpoint —
+      # returns HTTP 200 when the cluster is ready to accept S3 requests.
+      # bash /dev/tcp is used because curl/wget are absent from the Chainguard
+      # image.  This avoids the mc alias credential dependency.
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /minio/health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && read -r resp <&3 && [[ \"$$resp\" == *200* ]]"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
     networks:
       - internal
@@ -194,7 +230,16 @@ services:
     volumes:
       - static_files:/app/staticfiles:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # curl -sf: -s silent, -f exit non-zero on HTTP ≥ 400.
+      # / returns HTTP 200 (React SPA) — confirms Nginx is accepting requests.
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - edge
       - internal
