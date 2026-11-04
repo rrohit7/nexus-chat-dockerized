@@ -98,13 +98,13 @@ django-tests:
     - cd backend
     - python manage.py test --verbosity=2
 
-frontend-lint:
+frontend-build:
   stage: test
   image: node:20-alpine
   script:
     - cd chat-frontend
     - npm ci
-    - npm run lint
+    - npm run build
 
 # ── build ─────────────────────────────────────────────────────────────────────
 
