@@ -9,15 +9,6 @@ from apps.messaging.serializers import MessageSerializer
 from apps.messaging.models import Message, MessageRead
 from apps.messaging.services import contains_banned_word
 from apps.conversations.models import Conversation,ConversationParticipant
-import time
-import redis
-
-redis_client = redis.Redis(
-    host="127.0.0.1",
-    port=6379,
-    db=0,
-    decode_responses=True
-)
 User = get_user_model()
 ACTIVE_USERS = {}
 class ChatConsumer(AsyncWebsocketConsumer):

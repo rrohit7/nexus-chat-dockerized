@@ -16,7 +16,9 @@ services:
     env_file:
       - .env
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
     depends_on:
       redis:
         condition: service_healthy
@@ -45,7 +47,9 @@ services:
     env_file:
       - .env
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
     depends_on:
       redis:
         condition: service_healthy
@@ -78,7 +82,9 @@ services:
     env_file:
       - .env
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/0
     depends_on:
       - redis
       - db
@@ -102,14 +108,23 @@ services:
 
   redis:
     image: redis:7
+    user: redis
+    entrypoint:
+      - sh
+      - -c
+      - |
+        umask 077 &&
+        printf 'requirepass %s\n' "$$REDIS_PASSWORD" > /tmp/redis.conf &&
+        exec redis-server /tmp/redis.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set and non-empty in .env}
+      - REDISCLI_AUTH=${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-    ports:
-      - "127.0.0.1:6383:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped

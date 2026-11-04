@@ -206,11 +206,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("redis", 6379)],
+            "hosts": [REDIS_URL],
         },
     },
 }
@@ -327,8 +328,8 @@ AWS_S3_USE_SSL = False
 AWS_S3_VERIFY = False
 MINIO_URL_EXPIRY = 300
 # Celery
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", os.environ.get("REDIS_URL", "redis://redis:6379/0"))
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", os.environ.get("REDIS_URL", "redis://redis:6379/0"))
 
 CELERY_BEAT_SCHEDULE = {
     "auto-delete-expired-messages": {
