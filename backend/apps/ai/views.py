@@ -1,14 +1,14 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 
 from .serializers import SuggestReplySerializer,ChatSummarySerializer,TranslateSerializer,GrammarFixSerializer,RewriteSerializer,ChatSearchSerializer
 from .services import generate_reply,summarize_chat,translate_message,grammar_fix,rewrite_message,search_chat
 
 
 class SuggestReplyAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = SuggestReplySerializer(data=request.data)
@@ -27,7 +27,7 @@ class SuggestReplyAPIView(APIView):
         )
 
 class ChatSummaryAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = ChatSummarySerializer(
@@ -48,7 +48,7 @@ class ChatSummaryAPIView(APIView):
         )
 
 class TranslateAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = TranslateSerializer(
@@ -70,7 +70,7 @@ class TranslateAPIView(APIView):
         )
 
 class GrammarFixAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = GrammarFixSerializer(
@@ -92,7 +92,7 @@ class GrammarFixAPIView(APIView):
 
 
 class ChatSearchAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = ChatSearchSerializer(data=request.data)
@@ -113,7 +113,7 @@ class ChatSearchAPIView(APIView):
 
 
 class RewriteAPIView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = RewriteSerializer(

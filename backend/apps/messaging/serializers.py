@@ -13,10 +13,15 @@ class AttachmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Attachment
-        fields = ["id", "file_url", "file_type", "file_size", "original_name"]
+        fields = ["id", "file_url", "file_type", "file_size", "original_name", "scan_status"]
 
     def get_file_url(self, obj):
         if not obj.file:
+            return None
+
+        # Never hand out a download URL until the file is confirmed clean.
+        # pending → scan still running; infected → file deleted, key cleared.
+        if obj.scan_status != "clean":
             return None
 
         if self.context.get("view_once"):

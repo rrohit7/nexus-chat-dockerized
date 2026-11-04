@@ -172,6 +172,9 @@ def open_view_once_media(user, message):
     if not attachment:
         raise ValidationError("No attachment found")
 
+    if attachment.scan_status != "clean":
+        raise ValidationError("This file is not yet available")
+
     s3 = get_s3()
     obj = s3.get_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=attachment.file)
     content = obj["Body"].read()

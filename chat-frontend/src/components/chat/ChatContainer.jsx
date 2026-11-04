@@ -629,7 +629,8 @@ const buildMemberChatTarget = (member) => {
   console.log("📨 temp_id:", msg?.temp_id)
   if (!msg) return
 
-  const messageKey = `message_${msg.id}`
+  const scanSig = msg.attachments?.[0]?.scan_status ?? ""
+  const messageKey = `message_${msg.id}_${scanSig}`
   if (processedMessages.current.has(messageKey)) return
   processedMessages.current.add(messageKey)
   if (processedMessages.current.size > 1000) processedMessages.current.clear()
@@ -669,7 +670,11 @@ const buildMemberChatTarget = (member) => {
   }
 
   if (prev.some(m => m.id === normalizedMsg.id)) {
-    return prev
+    return prev.map(m =>
+      m.id === normalizedMsg.id
+        ? { ...normalizedMsg, status: normalizedMsg.status || m.status || "sent" }
+        : m
+    )
   }
 
   return [

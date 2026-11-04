@@ -5,6 +5,7 @@ import time
 
 from django.contrib.auth import get_user_model
 from django.test import override_settings
+from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -183,3 +184,129 @@ class TurnCredentialViewTests(APITestCase):
         self.assertNotIn(_FAKE_SECRET, response_text)
         # Also ensure the key name doesn't appear
         self.assertNotIn("auth_secret", response_text.lower())
+
+
+# ======================================================================
+# Registration password-validation tests
+# ======================================================================
+
+_REGISTER_URL = "/api/users/register/"
+
+
+def _register_payload(**overrides):
+    base = {
+        "username": "newuser",
+        "email": "newuser@example.com",
+        "password": "Str0ng!Pass#99",
+    }
+    base.update(overrides)
+    return base
+
+
+class RegistrationPasswordValidationTests(APITestCase):
+    """
+    Verify that AUTH_PASSWORD_VALIDATORS are enforced during registration.
+
+    Django's configured validators are:
+      - UserAttributeSimilarityValidator
+      - MinimumLengthValidator      (default min_length=8)
+      - CommonPasswordValidator
+      - NumericPasswordValidator
+    """
+
+    # ── Too short ──────────────────────────────────────────────────────
+
+    def test_short_password_rejected(self):
+        """Password shorter than MinimumLengthValidator.min_length (8) is rejected."""
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(password="Ab1!"),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+
+    # ── Common / weak password ─────────────────────────────────────────
+
+    def test_common_password_rejected(self):
+        """CommonPasswordValidator rejects well-known passwords."""
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(password="password"),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+
+    def test_numeric_only_password_rejected(self):
+        """NumericPasswordValidator rejects entirely numeric passwords."""
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(password="12345678"),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+
+    # ── Similarity to user attributes ─────────────────────────────────
+
+    def test_password_similar_to_username_rejected(self):
+        """UserAttributeSimilarityValidator rejects passwords too close to the username."""
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(username="johndoe99", password="johndoe99"),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+
+    def test_password_similar_to_email_rejected(self):
+        """UserAttributeSimilarityValidator rejects passwords too close to the email address."""
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(
+                username="someone",
+                email="alice@example.com",
+                password="alice123",
+            ),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+
+    # ── Valid password accepted ────────────────────────────────────────
+
+    def test_valid_password_accepted(self):
+        """A strong, unique password passes all validators and creates the user."""
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+    # ── Password never in response ─────────────────────────────────────
+
+    def test_password_not_in_success_response(self):
+        """The raw password must never appear in a successful registration response."""
+        password = "Str0ng!Pass#99"
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(username="user2reg", email="user2reg@example.com", password=password),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertNotIn(password, str(res.data))
+
+    def test_password_not_in_error_response(self):
+        """The submitted password value must not be echoed back in validation error responses."""
+        # "password123" is rejected by CommonPasswordValidator; its value is
+        # distinct from the "password" key name, so the assertion is unambiguous.
+        password = "password123"
+        res = self.client.post(
+            _REGISTER_URL,
+            _register_payload(password=password),
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn(password, str(res.data))

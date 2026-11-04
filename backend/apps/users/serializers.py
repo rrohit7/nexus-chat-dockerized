@@ -3,6 +3,8 @@ from .models import User
 from .models import UserPresence, BlockedUser, UserSession
 from utils.minio import get_s3
 from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 # =========================
 # REGISTER
@@ -22,6 +24,19 @@ class RegisterSerializer(serializers.ModelSerializer):
             "avatar",
             "bio"
         ]
+
+    def validate(self, attrs):
+        # Build a temporary (unsaved) user so UserAttributeSimilarityValidator
+        # can compare the password against the user's own attributes.
+        temp_user = User(
+            username=attrs.get("username", ""),
+            email=attrs.get("email", ""),
+        )
+        try:
+            validate_password(attrs["password"], user=temp_user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)})
+        return attrs
 
     def create(self, validated_data):
         user = User.objects.create_user(

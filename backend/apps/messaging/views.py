@@ -412,6 +412,8 @@ class MessageViewSet(viewsets.ModelViewSet):
         }
 
         def attachment_allowed(attachment):
+            if attachment.scan_status != "clean":
+                return False
             if attachment.file_type == Attachment.IMAGE and not include_photos:
                 return False
             if attachment.file_type == Attachment.VIDEO and not include_videos:

@@ -160,6 +160,9 @@ class Attachment(models.Model):
 
     @property
     def file_url(self):
+        if not self.file or self.scan_status != "clean":
+            return None
+
         from utils.minio import get_s3
         from django.conf import settings
 

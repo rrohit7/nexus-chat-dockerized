@@ -15,6 +15,24 @@ from asgiref.sync import async_to_sync
 logger = logging.getLogger(__name__)
 
 
+def _broadcast_scan_complete(attachment):
+    """Push an updated message payload to the conversation group so every
+    connected client receives the now-available download URL immediately."""
+    try:
+        from .serializers import MessageSerializer
+        message = attachment.message
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"chat_{message.conversation_id}",
+            {
+                "type": "message",
+                "message": MessageSerializer(message).data,
+            }
+        )
+    except Exception as ws_error:
+        logger.error("scan_complete broadcast error: %s", ws_error)
+
+
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={'max_retries': 3})
 def scan_file_task(self, attachment_id):
     try:
@@ -27,8 +45,12 @@ def scan_file_task(self, attachment_id):
         is_zip = (attachment.original_name or "").lower().endswith(".zip")
 
         if attachment.file_type not in ["image", "file"] or is_zip:
+            # These file types are exempt from ClamAV scanning (video/voice are
+            # low-risk in a browser renderer; zips are deferred). Mark clean and
+            # broadcast so the frontend receives the download URL immediately.
             attachment.scan_status = "clean"
             attachment.save(update_fields=["scan_status"])
+            _broadcast_scan_complete(attachment)
             return
 
         s3 = get_s3()
@@ -38,8 +60,8 @@ def scan_file_task(self, attachment_id):
                 Bucket=settings.AWS_STORAGE_BUCKET_NAME,
                 Key=str(attachment.file)
             )
-        except ClientError:
-            return
+        except ClientError as exc:
+            raise
 
         file_stream = file_obj["Body"]
 
@@ -88,6 +110,7 @@ def scan_file_task(self, attachment_id):
             attachment.scan_status = "clean"
 
         attachment.save(update_fields=["scan_status"])
+        _broadcast_scan_complete(attachment)
 
     except Exception as e:
         logger.error(f"Scan error: {e}")
