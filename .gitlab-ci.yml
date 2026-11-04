@@ -1,13 +1,31 @@
 
+workflow:
+  rules:
+    # Run the pipeline only when application or deployment files change.
+    # README-only commits (or other documentation) produce no pipeline.
+    - if: '$CI_COMMIT_BRANCH'
+      changes:
+        - backend/**/*
+        - chat-frontend/**/*
+        - .gitlab-ci.yml
+        - .dockerignore
+
 stages:
   - validate
+  - test
   - build
 
 variables:
+  # Docker-in-Docker TLS (consistent across all Docker jobs)
   DOCKER_HOST: tcp://docker:2376
   DOCKER_TLS_CERTDIR: "/certs"
   DOCKER_TLS_VERIFY: "1"
   DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  # Registry image paths — resolved at job runtime
+  BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA
+  NGINX_IMAGE: $CI_REGISTRY_IMAGE/nginx:$CI_COMMIT_SHORT_SHA
+
+# ── validate ──────────────────────────────────────────────────────────────────
 
 validate-compose:
   stage: validate
@@ -19,18 +37,76 @@ validate-compose:
     - docker info
   script:
     - cd backend
+    # Write a CI-only .env with harmless dummy values.
+    # REDIS_PASSWORD is required by the :? guard in docker-compose.yml.
+    # All values here are throwaway CI values — never the real local secrets.
     - |
-      cat > .env <<'EOF'
+      cat > .env <<'CIENV'
       DB_NAME=ci_db
       DB_USER=ci_user
       DB_PASSWORD=ci_password
+      DB_HOST=db
+      DB_PORT=5432
       MINIO_ROOT_USER=ci_minio
       MINIO_ROOT_PASSWORD=ci_minio_password
-      EOF
+      REDIS_PASSWORD=ci-redis-password
+      SECRET_KEY=ci-secret-key-not-used-at-config-time
+      DEEPSEEK_API_KEY=placeholder
+      CIENV
     - docker compose config -q
-    - rm -f .env
-  rules:
-    - if: '$CI_COMMIT_BRANCH'
+  after_script:
+    - rm -f backend/.env
+
+# ── test ──────────────────────────────────────────────────────────────────────
+
+django-tests:
+  stage: test
+  image: python:3.12-slim
+  services:
+    - name: postgres:15
+      alias: db
+  variables:
+    # PostgreSQL service bootstrap — the postgres:15 image reads these on startup
+    POSTGRES_DB: ci_db
+    POSTGRES_USER: ci_user
+    POSTGRES_PASSWORD: ci_password
+    # Django environment — all CI-only dummy values
+    SECRET_KEY: "ci-secret-key-long-enough-for-django-to-accept-without-complaint"
+    DEBUG: "False"
+    ALLOWED_HOSTS: "localhost"
+    DB_NAME: ci_db
+    DB_USER: ci_user
+    DB_PASSWORD: ci_password
+    DB_HOST: db
+    DB_PORT: "5432"
+    DEEPSEEK_API_KEY: placeholder
+    MINIO_ACCESS_KEY: placeholder
+    MINIO_SECRET_KEY: placeholder
+    MINIO_BUCKET_NAME: placeholder
+    MINIO_ENDPOINT: "http://localhost:9000"
+    MINIO_REGION: us-east-1
+    # Channels uses REDIS_URL; no Redis service is started — tests mock the
+    # channel layer, so no actual connection is attempted at test time.
+    REDIS_URL: "redis://localhost:6379/0"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq
+        libmagic1 libpq-dev gcc python3-dev build-essential postgresql-client
+    # Wait for the postgres service to accept connections before running tests.
+    - until pg_isready -h db -U ci_user; do sleep 1; done
+    - pip install --no-cache-dir -r backend/requirements.txt
+  script:
+    - cd backend
+    - python manage.py test --verbosity=2
+
+frontend-lint:
+  stage: test
+  image: node:20-alpine
+  script:
+    - cd chat-frontend
+    - npm ci
+    - npm run lint
+
+# ── build ─────────────────────────────────────────────────────────────────────
 
 build-images:
   stage: build
@@ -40,9 +116,15 @@ build-images:
       alias: docker
   before_script:
     - docker info
+    - echo "$CI_REGISTRY_PASSWORD" | docker login --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - docker build -f backend/Dockerfile -t nexus-chat-backend:$CI_COMMIT_SHORT_SHA backend
-    - docker build -f backend/nginx/Dockerfile -t nexus-chat-nginx:$CI_COMMIT_SHORT_SHA .
-    - docker build -f chat-frontend/Dockerfile -t nexus-chat-frontend:$CI_COMMIT_SHORT_SHA chat-frontend
+    # Backend image — build context is backend/
+    - docker build -f backend/Dockerfile -t $BACKEND_IMAGE backend
+    # Combined Nginx + frontend image — build context must be repo root
+    # so the Dockerfile can COPY from both backend/nginx/ and chat-frontend/
+    - docker build -f backend/nginx/Dockerfile -t $NGINX_IMAGE .
+    - docker push $BACKEND_IMAGE
+    - docker push $NGINX_IMAGE
   rules:
-    - if: '$CI_COMMIT_BRANCH'
+    # Publish only from main. Validate and test run on every branch.
+    - if: '$CI_COMMIT_BRANCH == "main"'
